@@ -1,0 +1,43 @@
+services:
+  # Backend Service
+  - type: web
+    name: herstories-backend
+    env: node
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_PATH
+        value: /opt/render/project/src/db/herstories.db
+      - key: FRONTEND_URL
+        fromService:
+          name: herstories-frontend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # Frontend Service
+  - type: web
+    name: herstories-frontend
+    env: static
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: herstories-backend
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+          property: .+api

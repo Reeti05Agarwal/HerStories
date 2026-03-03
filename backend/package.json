@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "init-db": "node src/config/database.js"
+    "init-db": "node src/config/database.js",
+    "postinstall": "node src/config/database.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

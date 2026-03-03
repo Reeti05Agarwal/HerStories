@@ -5,7 +5,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbPath = path.join(__dirname, '../../db/herstories.db');
+// Use absolute path for production (Render), relative for development
+const dbPath = process.env.NODE_ENV === 'production'
+  ? process.env.DATABASE_PATH || '/opt/render/project/src/db/herstories.db'
+  : path.join(__dirname, '../../db/herstories.db');
 
 const db = new Database(dbPath);
 
