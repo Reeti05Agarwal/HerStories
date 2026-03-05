@@ -4,18 +4,61 @@ This guide will help you deploy the HerStories platform to Render.com.
 
 ## Overview
 
-You'll create **two separate services** on Render:
-1. **Backend Service** (Express.js API)
-2. **Frontend Service** (Vite + React static site)
+You'll create **three services** on Render:
+1. **PostgreSQL Database** (free tier)
+2. **Backend Service** (Express.js API)
+3. **Frontend Service** (Vite + React static site)
 
 ---
 
-## Step-by-Step Deployment
+## Option 1: One-Click Deploy with render.yaml (Recommended)
 
-### Phase 1: Deploy Backend First
+Simply run these commands in your terminal:
+
+```bash
+# Install Render CLI
+npm install -g @render-cloud/cli
+
+# Login to Render
+render login
+
+# Deploy using render.yaml
+render up
+```
+
+This will automatically create:
+- PostgreSQL database
+- Backend service with DATABASE_URL connected
+- Frontend service with API URL connected
+
+---
+
+## Option 2: Manual Deployment
+
+### Phase 1: Create PostgreSQL Database
 
 1. **Go to Render Dashboard**
    - Visit https://dashboard.render.com
+   - Click **"New +"** → **"PostgreSQL"**
+
+2. **Configure Database**
+
+   | Setting | Value |
+   |---------|-------|
+   | **Name** | `herstories-db` |
+   | **Region** | Oregon (or closest to you) |
+   | **Database Name** | `herstories` |
+   | **Plan** | `Free` |
+
+3. **Click "Create Database"**
+   - Wait for provisioning (takes ~2-3 minutes)
+   - Copy the **Internal Database URL** (looks like `postgresql://user:password@host:5432/herstories`)
+
+---
+
+### Phase 2: Deploy Backend
+
+1. **Go to Render Dashboard**
    - Click **"New +"** → **"Web Service"**
 
 2. **Connect Repository**
@@ -27,7 +70,7 @@ You'll create **two separate services** on Render:
    | Setting | Value |
    |---------|-------|
    | **Name** | `herstories-backend` |
-   | **Region** | Oregon (or closest to you) |
+   | **Region** | Oregon (same as database) |
    | **Branch** | `main` |
    | **Root Directory** | `backend` |
    | **Runtime** | `Node` |
@@ -44,7 +87,7 @@ You'll create **two separate services** on Render:
    | `NODE_ENV` | `production` |
    | `PORT` | `3001` |
    | `JWT_SECRET` | `your-secure-random-string-here` (use a generator) |
-   | `DATABASE_PATH` | `/opt/render/project/src/db/herstories.db` |
+   | `DATABASE_URL` | *(paste Internal Database URL from Phase 1)* |
    | `FRONTEND_URL` | *(leave empty for now, update after frontend deployment)* |
 
 5. **Click "Create Web Service"**
@@ -56,7 +99,7 @@ You'll create **two separate services** on Render:
 
 ---
 
-### Phase 2: Deploy Frontend
+### Phase 3: Deploy Frontend
 
 1. **Go to Render Dashboard**
    - Click **"New +"** → **"Static Site"**
@@ -83,7 +126,7 @@ You'll create **two separate services** on Render:
    |-----|-------|
    | `VITE_API_URL` | `https://herstories-backend-xxxx.onrender.com/api` |
 
-   ⚠️ **Important**: Replace `herstories-backend-xxxx.onrender.com` with your actual backend URL from Phase 1
+   ⚠️ **Important**: Replace `herstories-backend-xxxx.onrender.com` with your actual backend URL from Phase 2
 
 5. **Click "Create Static Site"**
 
@@ -94,7 +137,7 @@ You'll create **two separate services** on Render:
 
 ---
 
-### Phase 3: Update Backend CORS
+### Phase 4: Update Backend CORS
 
 1. **Go back to Backend Service**
    - In Render dashboard, click on `herstories-backend`
@@ -135,27 +178,24 @@ You should see the HerStories homepage.
 
 ## Important Notes
 
-### ⚠️ Database Persistence on Free Tier
+### ✅ Database Persistence
 
-Render's free tier has **ephemeral storage**. The SQLite database will be **deleted** when:
-- The service redeploys
-- The service is idle for too long (free tier spins down after 15 minutes)
-
-**Solutions:**
-1. **Upgrade to Paid Plan** - Persistent storage included
-2. **Use External Database** - Migrate to PostgreSQL (Render offers free PostgreSQL)
-3. **Accept the limitation** - For demos/testing only
+Render's **free PostgreSQL** tier includes:
+- 1 GB storage
+- Persistent data (won't be deleted on redeploy)
+- 90-day backup retention
+- Auto-wakes after 15 minutes of inactivity (free tier)
 
 ### 🔄 Auto-Deploy on Git Push
 
-Both services are connected to your `main` branch. Any push to GitHub will automatically:
+All services are connected to your `main` branch. Any push to GitHub will automatically:
 1. Rebuild the backend
 2. Rebuild the frontend
 3. Deploy both services
 
 ### 📝 Environment Variables
 
-Keep these secure! Never commit `.env` files to GitHub. The values in `render.yaml` are templates only.
+Keep these secure! Never commit `.env` files to GitHub.
 
 ---
 
@@ -169,14 +209,14 @@ Keep these secure! Never commit `.env` files to GitHub. The values in `render.ya
 ### Backend crashes on startup
 - Check Render logs: Dashboard → Backend → Logs
 - Common issues:
-  - Missing environment variables
-  - Database path incorrect
+  - Missing `DATABASE_URL` environment variable
+  - Incorrect database connection string
   - Dependencies not installing
 
-### Database is empty after deploy
-- The `postinstall` script should auto-initialize
-- Check logs for database initialization messages
-- Verify `DATABASE_PATH` is set correctly
+### Database connection errors
+- Ensure `DATABASE_URL` is set correctly in backend environment variables
+- Check that database is in the same region as backend
+- Verify database is accessible (check Render dashboard)
 
 ### CORS errors in browser console
 - Ensure `FRONTEND_URL` is set in backend environment variables
@@ -184,29 +224,11 @@ Keep these secure! Never commit `.env` files to GitHub. The values in `render.ya
 
 ---
 
-## Optional: Use render.yaml for One-Click Deploy
-
-Instead of manual setup, you can use the `render.yaml` file:
-
-```bash
-# Install Render CLI
-npm install -g @render-cloud/cli
-
-# Login to Render
-render login
-
-# Deploy using render.yaml
-render up
-```
-
-This will create both services automatically with all settings from the YAML file.
-
----
-
 ## Cost Estimate (Free Tier)
 
 | Service | Cost |
 |---------|------|
+| PostgreSQL (Free) | $0/month (1 GB storage) |
 | Backend (Free) | $0/month (spins down after 15 min idle) |
 | Frontend (Free) | $0/month |
 | **Total** | **$0/month** |
@@ -221,7 +243,7 @@ Note: Free tier services may have slower cold starts.
 2. **Set Custom Domain** - Render supports custom domains on paid plans
 3. **Enable HTTPS** - Automatic on Render
 4. **Monitor Logs** - Check Render dashboard regularly
-5. **Backup Database** - Download SQLite file periodically or migrate to PostgreSQL
+5. **Database Backups** - Render provides automatic backups
 
 ---
 

@@ -1,4 +1,12 @@
 services:
+  # PostgreSQL Database
+  - type: pserv
+    name: herstories-db
+    databaseName: herstories
+    region: oregon
+    plan: free
+    ipAllowList: []
+
   # Backend Service
   - type: web
     name: herstories-backend
@@ -16,8 +24,10 @@ services:
         value: 3001
       - key: JWT_SECRET
         generateValue: true
-      - key: DATABASE_PATH
-        value: /opt/render/project/src/db/herstories.db
+      - key: DATABASE_URL
+        fromDatabase:
+          name: herstories-db
+          property: connectionString
       - key: FRONTEND_URL
         fromService:
           name: herstories-frontend
