@@ -29,11 +29,11 @@ function App() {
     checkAuth();
 
     // Listen for login success events
-    const handleLoginSuccess = (event: CustomEvent) => {
-      const { email, user, isAdmin: newIsAdmin } = event.detail;
+    const handleLoginSuccess = (event: CustomEvent<{ email: string; user: { id: number; email: string; name: string; role: string } | null; isAdmin: boolean }>) => {
+      const { email, user: loginUser, isAdmin: newIsAdmin } = event.detail;
       setContributorEmail(email);
-      if (user) {
-        setUser(user);
+      if (loginUser) {
+        setUser(loginUser);
       }
       if (newIsAdmin) {
         setIsAdmin(true);
@@ -45,9 +45,9 @@ function App() {
       }
     };
 
-    window.addEventListener('herstories-login-success' as any, handleLoginSuccess as any);
+    window.addEventListener('herstories-login-success', handleLoginSuccess as EventListener);
     return () => {
-      window.removeEventListener('herstories-login-success' as any, handleLoginSuccess as any);
+      window.removeEventListener('herstories-login-success', handleLoginSuccess as EventListener);
     };
   }, []);
 
@@ -129,8 +129,9 @@ function App() {
         toast.success('Welcome back!');
         setCurrentView('dashboard');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Login failed';
+      toast.error(message);
     }
   };
 

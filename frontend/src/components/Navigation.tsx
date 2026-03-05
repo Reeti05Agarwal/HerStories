@@ -68,8 +68,9 @@ export function Navigation({
       setLoginDialogOpen(false);
       setLoginEmail('');
       setLoginPassword('');
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Login failed';
+      toast.error(message);
     } finally {
       setIsLoggingIn(false);
     }

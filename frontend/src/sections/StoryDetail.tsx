@@ -52,8 +52,9 @@ export function StoryDetail({ story, onBack, onContributionSubmitted }: StoryDet
       setContributionContent('');
       setShowContributionForm(false);
       onContributionSubmitted();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to submit contribution. Please try again.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to submit contribution. Please try again.';
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

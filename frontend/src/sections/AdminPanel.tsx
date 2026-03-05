@@ -90,9 +90,10 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
       setContributions(contributionsData.contributions || []);
       setStories(storiesData.stories || []);
       setStats(statsData.stats || {});
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to load data:', error);
-      toast.error(error.message || 'Failed to load admin data');
+      const message = error instanceof Error ? error.message : 'Failed to load admin data';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -106,8 +107,9 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
       onStoryApproved();
       setSelectedSubmission(null);
       setAdminNotes('');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to approve submission');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to approve submission';
+      toast.error(message);
     }
   };
 
@@ -119,8 +121,9 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
       onStoryRejected();
       setSelectedSubmission(null);
       setAdminNotes('');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to reject submission');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to reject submission';
+      toast.error(message);
     }
   };
 
@@ -130,8 +133,9 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
       toast.success('Contribution approved');
       loadData();
       setSelectedContribution(null);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to approve contribution');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to approve contribution';
+      toast.error(message);
     }
   };
 
@@ -141,8 +145,9 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
       toast.info('Contribution rejected');
       loadData();
       setSelectedContribution(null);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to reject contribution');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to reject contribution';
+      toast.error(message);
     }
   };
 
@@ -181,33 +186,35 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
 
   const handleDeleteStory = async (id: string) => {
     if (!confirm('Are you sure you want to delete this story?')) return;
-    
+
     try {
       await storiesApi.delete(id);
       toast.success('Story deleted successfully');
       loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to delete story');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to delete story';
+      toast.error(message);
     }
   };
 
   const handleSaveStory = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       setIsSubmittingStory(true);
       if (editingStory) {
-        await storiesApi.update(editingStory.id, storyForm);
+        await storiesApi.update(editingStory.id, storyForm as unknown as Record<string, unknown>);
         toast.success('Story updated successfully');
       } else {
-        await storiesApi.create(storyForm);
+        await storiesApi.create(storyForm as unknown as Record<string, unknown>);
         toast.success('Story created successfully');
       }
       setShowStoryForm(false);
       setEditingStory(null);
       loadData();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to save story');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to save story';
+      toast.error(message);
     } finally {
       setIsSubmittingStory(false);
     }

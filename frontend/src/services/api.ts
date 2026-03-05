@@ -60,13 +60,13 @@ export const storiesApi = {
   getById: async (id: string) => {
     return apiCall(`/stories/${id}`);
   },
-  create: async (story: any) => {
+  create: async (story: Record<string, unknown>) => {
     return apiCall('/stories', {
       method: 'POST',
       body: JSON.stringify(story),
     });
   },
-  update: async (id: string, updates: any) => {
+  update: async (id: string, updates: Record<string, unknown>) => {
     return apiCall(`/stories/${id}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
@@ -88,7 +88,7 @@ export const submissionsApi = {
   getById: async (id: string) => {
     return apiCall(`/submissions/${id}`);
   },
-  create: async (submission: any) => {
+  create: async (submission: Record<string, unknown>) => {
     return apiCall('/submissions', {
       method: 'POST',
       body: JSON.stringify(submission),
@@ -127,7 +127,7 @@ export const contributionsApi = {
   getById: async (id: string) => {
     return apiCall(`/contributions/${id}`);
   },
-  create: async (contribution: any) => {
+  create: async (contribution: Record<string, unknown>) => {
     return apiCall('/contributions', {
       method: 'POST',
       body: JSON.stringify(contribution),

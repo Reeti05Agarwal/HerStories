@@ -1,39 +1,82 @@
-import pkg from 'pg';
-const { Pool } = pkg;
+import sqlite3 from 'sqlite3';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Create connection pool
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false
-  } : false
+// Database path - use environment variable or default to local file
+const DB_PATH = process.env.DATABASE_PATH || './db/herstories.db';
+
+// Create database connection
+const db = new sqlite3.Database(DB_PATH, (err) => {
+  if (err) {
+    console.error('Database connection error:', err);
+  } else {
+    console.log(`Connected to SQLite database at ${DB_PATH}`);
+  }
 });
+
+// Helper to convert rows to objects
+const rowToObject = (row) => {
+  if (!row) return null;
+  const obj = {};
+  for (const key in row) {
+    obj[key] = row[key];
+  }
+  return obj;
+};
+
+// Helper to run queries with promises
+const runQuery = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err) {
+      if (err) reject(err);
+      else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+};
+
+// Helper to get single row
+const getRow = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(rowToObject(row));
+    });
+  });
+};
+
+// Helper to get all rows
+const allRows = (sql, params = []) => {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows.map(rowToObject));
+    });
+  });
+};
 
 // Initialize database schema
 const initializeDatabase = async () => {
   console.log('Initializing database...');
-  
+
   try {
     // Users table (for admin authentication)
-    await pool.query(`
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         name TEXT NOT NULL,
         role TEXT DEFAULT 'user',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Stories table
-    await pool.query(`
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS stories (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         subject TEXT NOT NULL,
         summary TEXT NOT NULL,
@@ -45,16 +88,16 @@ const initializeDatabase = async () => {
         submitted_by TEXT NOT NULL,
         submitter_email TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
-        featured BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        featured INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Submissions table
-    await pool.query(`
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS submissions (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         subject TEXT NOT NULL,
         summary TEXT NOT NULL,
@@ -66,78 +109,78 @@ const initializeDatabase = async () => {
         submitter_email TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
         admin_notes TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Contributions table
-    await pool.query(`
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS contributions (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
         content TEXT NOT NULL,
         contribution_type TEXT NOT NULL,
         submitted_by TEXT NOT NULL,
         submitter_email TEXT NOT NULL,
         status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Contributors table
-    await pool.query(`
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS contributors (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Contributor activities
-    await pool.query(`
+    await runQuery(`
       CREATE TABLE IF NOT EXISTS contributor_activities (
-        id SERIAL PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         contributor_id INTEGER NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
         activity_type TEXT NOT NULL,
         activity_id INTEGER NOT NULL,
         story_id INTEGER,
         story_title TEXT,
         status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
     // Create indexes
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
-      CREATE INDEX IF NOT EXISTS idx_stories_category ON stories(category);
-      CREATE INDEX IF NOT EXISTS idx_stories_featured ON stories(featured);
-      CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
-      CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status);
-      CREATE INDEX IF NOT EXISTS idx_contributions_story_id ON contributions(story_id);
-      CREATE INDEX IF NOT EXISTS idx_contributor_activities_contributor_id ON contributor_activities(contributor_id);
-    `);
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_stories_category ON stories(category)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_stories_featured ON stories(featured)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_contributions_story_id ON contributions(story_id)');
+    await runQuery('CREATE INDEX IF NOT EXISTS idx_contributor_activities_contributor_id ON contributor_activities(contributor_id)');
 
     // Insert default admin user if not exists
+    const existingAdmin = await getRow('SELECT * FROM users WHERE email = ?', [DB_PATH]);
+    
     const adminEmail = 'admin@herstories.org';
-    const existingAdmin = await pool.query('SELECT * FROM users WHERE email = $1', [adminEmail]);
+    const existingAdminCheck = await getRow('SELECT * FROM users WHERE email = ?', [adminEmail]);
 
-    if (existingAdmin.rows.length === 0) {
+    if (!existingAdminCheck) {
       const bcrypt = await import('bcryptjs');
       const passwordHash = bcrypt.default.hashSync('admin123', 10);
-      await pool.query(
-        'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+      await runQuery(
+        'INSERT INTO users (email, password_hash, name, role) VALUES (?, ?, ?, ?)',
         [adminEmail, passwordHash, 'Admin User', 'admin']
       );
       console.log('Default admin user created: admin@herstories.org (password: admin123)');
     }
 
     // Insert sample stories if empty
-    const storyCount = await pool.query('SELECT COUNT(*) FROM stories');
-    if (parseInt(storyCount.rows[0].count) === 0) {
+    const storyCount = await getRow('SELECT COUNT(*) as count FROM stories');
+    if (!storyCount || parseInt(storyCount.count) === 0) {
       await insertSampleStories();
     }
 
@@ -237,9 +280,9 @@ const insertSampleStories = async () => {
   ];
 
   for (const story of sampleStories) {
-    await pool.query(`
+    await runQuery(`
       INSERT INTO stories (title, subject, summary, content, category, era, region, image_url, submitted_by, submitter_email, status, featured)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       story.title,
       story.subject,
@@ -252,11 +295,11 @@ const insertSampleStories = async () => {
       story.submittedBy,
       story.submitterEmail,
       story.status,
-      story.featured,
+      story.featured ? 1 : 0,
     ]);
   }
 
   console.log('Sample stories inserted!');
 };
 
-export { pool, initializeDatabase };
+export { db, runQuery, getRow, allRows, initializeDatabase };

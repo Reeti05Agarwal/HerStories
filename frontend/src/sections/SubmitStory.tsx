@@ -72,8 +72,9 @@ export function SubmitStory({ onSubmit, onCancel }: SubmitStoryProps) {
       });
 
       onSubmit();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to submit story. Please try again.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to submit story. Please try again.';
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

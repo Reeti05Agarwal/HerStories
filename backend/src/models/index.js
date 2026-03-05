@@ -1,51 +1,43 @@
-import { pool } from '../config/database.js';
+import { runQuery, getRow, allRows } from '../config/database.js';
 
 // Story models
 export const StoryModel = {
   findAll: async (filters = {}) => {
     let query = 'SELECT * FROM stories WHERE 1=1';
     const params = [];
-    let paramIndex = 1;
 
     if (filters.status) {
-      query += ` AND status = $${paramIndex}`;
+      query += ' AND status = ?';
       params.push(filters.status);
-      paramIndex++;
     }
 
     if (filters.category) {
-      query += ` AND category = $${paramIndex}`;
+      query += ' AND category = ?';
       params.push(filters.category);
-      paramIndex++;
     }
 
     if (filters.era) {
-      query += ` AND era = $${paramIndex}`;
+      query += ' AND era = ?';
       params.push(filters.era);
-      paramIndex++;
     }
 
     if (filters.region) {
-      query += ` AND region = $${paramIndex}`;
+      query += ' AND region = ?';
       params.push(filters.region);
-      paramIndex++;
     }
 
     if (filters.featured !== undefined) {
-      query += ` AND featured = $${paramIndex}`;
-      params.push(filters.featured);
-      paramIndex++;
+      query += ' AND featured = ?';
+      params.push(filters.featured ? 1 : 0);
     }
 
     query += ' ORDER BY created_at DESC';
 
-    const result = await pool.query(query, params);
-    return result.rows;
+    return await allRows(query, params);
   },
 
   findById: async (id) => {
-    const result = await pool.query('SELECT * FROM stories WHERE id = $1', [id]);
-    return result.rows[0] || null;
+    return await getRow('SELECT * FROM stories WHERE id = ?', [id]);
   },
 
   create: async (storyData) => {
@@ -64,10 +56,9 @@ export const StoryModel = {
       featured = false,
     } = storyData;
 
-    const result = await pool.query(`
+    await runQuery(`
       INSERT INTO stories (title, subject, summary, content, category, era, region, image_url, submitted_by, submitter_email, status, featured)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       title,
       subject,
@@ -80,24 +71,28 @@ export const StoryModel = {
       submittedBy,
       submitterEmail,
       status,
-      featured,
+      featured ? 1 : 0,
     ]);
 
-    return result.rows[0];
+    // Get the last inserted row
+    const result = await getRow('SELECT * FROM stories ORDER BY id DESC LIMIT 1');
+    return result;
   },
 
   update: async (id, updates) => {
     const allowedFields = ['title', 'subject', 'summary', 'content', 'category', 'era', 'region', 'imageUrl', 'status', 'featured'];
     const setClauses = [];
     const values = [];
-    let paramIndex = 1;
 
     for (const [key, value] of Object.entries(updates)) {
       const dbKey = key === 'imageUrl' ? 'image_url' : key;
       if (allowedFields.includes(dbKey)) {
-        setClauses.push(`${dbKey} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
+        setClauses.push(`${dbKey} = ?`);
+        if (dbKey === 'featured') {
+          values.push(value ? 1 : 0);
+        } else {
+          values.push(value);
+        }
       }
     }
 
@@ -106,51 +101,46 @@ export const StoryModel = {
     setClauses.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    const query = `UPDATE stories SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    await runQuery(`UPDATE stories SET ${setClauses.join(', ')} WHERE id = ?`, values);
+    return await getRow('SELECT * FROM stories WHERE id = ?', [id]);
   },
 
   delete: async (id) => {
-    const result = await pool.query('DELETE FROM stories WHERE id = $1 RETURNING *', [id]);
-    return result.rows[0] || null;
+    const story = await getRow('SELECT * FROM stories WHERE id = ?', [id]);
+    await runQuery('DELETE FROM stories WHERE id = ?', [id]);
+    return story;
   },
 
   search: async (query) => {
     const searchTerm = `%${query.toLowerCase()}%`;
-    const result = await pool.query(`
+    return await allRows(`
       SELECT * FROM stories
       WHERE status = 'approved'
       AND (
-        LOWER(title) LIKE $1 OR
-        LOWER(subject) LIKE $2 OR
-        LOWER(summary) LIKE $3 OR
-        LOWER(content) LIKE $4 OR
-        LOWER(category) LIKE $5 OR
-        LOWER(era) LIKE $6 OR
-        LOWER(region) LIKE $7
+        LOWER(title) LIKE ? OR
+        LOWER(subject) LIKE ? OR
+        LOWER(summary) LIKE ? OR
+        LOWER(content) LIKE ? OR
+        LOWER(category) LIKE ? OR
+        LOWER(era) LIKE ? OR
+        LOWER(region) LIKE ?
       )
       ORDER BY created_at DESC
     `, [searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm, searchTerm]);
-    return result.rows;
   },
 };
 
 // Submission models
 export const SubmissionModel = {
   findAll: async (status) => {
-    let result;
     if (status) {
-      result = await pool.query('SELECT * FROM submissions WHERE status = $1 ORDER BY created_at DESC', [status]);
-    } else {
-      result = await pool.query('SELECT * FROM submissions ORDER BY created_at DESC');
+      return await allRows('SELECT * FROM submissions WHERE status = ? ORDER BY created_at DESC', [status]);
     }
-    return result.rows;
+    return await allRows('SELECT * FROM submissions ORDER BY created_at DESC');
   },
 
   findById: async (id) => {
-    const result = await pool.query('SELECT * FROM submissions WHERE id = $1', [id]);
-    return result.rows[0] || null;
+    return await getRow('SELECT * FROM submissions WHERE id = ?', [id]);
   },
 
   create: async (submissionData) => {
@@ -166,10 +156,9 @@ export const SubmissionModel = {
       submitterEmail,
     } = submissionData;
 
-    const result = await pool.query(`
+    await runQuery(`
       INSERT INTO submissions (title, subject, summary, content, category, era, region, submitted_by, submitter_email, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       title,
       subject,
@@ -183,21 +172,21 @@ export const SubmissionModel = {
       'pending',
     ]);
 
-    return result.rows[0];
+    // Get the last inserted row
+    const result = await getRow('SELECT * FROM submissions ORDER BY id DESC LIMIT 1');
+    return result;
   },
 
   update: async (id, updates) => {
     const allowedFields = ['status', 'adminNotes'];
     const setClauses = [];
     const values = [];
-    let paramIndex = 1;
 
     for (const [key, value] of Object.entries(updates)) {
       const dbKey = key === 'adminNotes' ? 'admin_notes' : key;
       if (allowedFields.includes(dbKey)) {
-        setClauses.push(`${dbKey} = $${paramIndex}`);
+        setClauses.push(`${dbKey} = ?`);
         values.push(value);
-        paramIndex++;
       }
     }
 
@@ -206,14 +195,14 @@ export const SubmissionModel = {
     setClauses.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    const query = `UPDATE submissions SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    await runQuery(`UPDATE submissions SET ${setClauses.join(', ')} WHERE id = ?`, values);
+    return await getRow('SELECT * FROM submissions WHERE id = ?', [id]);
   },
 
   delete: async (id) => {
-    const result = await pool.query('DELETE FROM submissions WHERE id = $1 RETURNING *', [id]);
-    return result.rows[0] || null;
+    const submission = await getRow('SELECT * FROM submissions WHERE id = ?', [id]);
+    await runQuery('DELETE FROM submissions WHERE id = ?', [id]);
+    return submission;
   },
 };
 
@@ -222,34 +211,28 @@ export const ContributionModel = {
   findAll: async (filters = {}) => {
     let query = 'SELECT * FROM contributions WHERE 1=1';
     const params = [];
-    let paramIndex = 1;
 
     if (filters.status) {
-      query += ` AND status = $${paramIndex}`;
+      query += ' AND status = ?';
       params.push(filters.status);
-      paramIndex++;
     }
 
     if (filters.storyId) {
-      query += ` AND story_id = $${paramIndex}`;
+      query += ' AND story_id = ?';
       params.push(filters.storyId);
-      paramIndex++;
     }
 
     query += ' ORDER BY created_at DESC';
 
-    const result = await pool.query(query, params);
-    return result.rows;
+    return await allRows(query, params);
   },
 
   findById: async (id) => {
-    const result = await pool.query('SELECT * FROM contributions WHERE id = $1', [id]);
-    return result.rows[0] || null;
+    return await getRow('SELECT * FROM contributions WHERE id = ?', [id]);
   },
 
   findByStoryId: async (storyId) => {
-    const result = await pool.query('SELECT * FROM contributions WHERE story_id = $1 ORDER BY created_at DESC', [storyId]);
-    return result.rows;
+    return await allRows('SELECT * FROM contributions WHERE story_id = ? ORDER BY created_at DESC', [storyId]);
   },
 
   create: async (contributionData) => {
@@ -261,10 +244,9 @@ export const ContributionModel = {
       submitterEmail,
     } = contributionData;
 
-    const result = await pool.query(`
+    await runQuery(`
       INSERT INTO contributions (story_id, content, contribution_type, submitted_by, submitter_email, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?, ?)
     `, [
       storyId,
       content,
@@ -274,20 +256,20 @@ export const ContributionModel = {
       'pending',
     ]);
 
-    return result.rows[0];
+    // Get the last inserted row
+    const result = await getRow('SELECT * FROM contributions ORDER BY id DESC LIMIT 1');
+    return result;
   },
 
   update: async (id, updates) => {
     const allowedFields = ['status'];
     const setClauses = [];
     const values = [];
-    let paramIndex = 1;
 
     for (const [key, value] of Object.entries(updates)) {
       if (allowedFields.includes(key)) {
-        setClauses.push(`${key} = $${paramIndex}`);
+        setClauses.push(`${key} = ?`);
         values.push(value);
-        paramIndex++;
       }
     }
 
@@ -296,48 +278,45 @@ export const ContributionModel = {
     setClauses.push('updated_at = CURRENT_TIMESTAMP');
     values.push(id);
 
-    const query = `UPDATE contributions SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`;
-    const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    await runQuery(`UPDATE contributions SET ${setClauses.join(', ')} WHERE id = ?`, values);
+    return await getRow('SELECT * FROM contributions WHERE id = ?', [id]);
   },
 
   delete: async (id) => {
-    const result = await pool.query('DELETE FROM contributions WHERE id = $1 RETURNING *', [id]);
-    return result.rows[0] || null;
+    const contribution = await getRow('SELECT * FROM contributions WHERE id = ?', [id]);
+    await runQuery('DELETE FROM contributions WHERE id = ?', [id]);
+    return contribution;
   },
 };
 
 // Contributor models
 export const ContributorModel = {
   findAll: async () => {
-    const result = await pool.query('SELECT * FROM contributors ORDER BY created_at DESC');
-    return result.rows;
+    return await allRows('SELECT * FROM contributors ORDER BY created_at DESC');
   },
 
   findByEmail: async (email) => {
-    const contributorResult = await pool.query('SELECT * FROM contributors WHERE email = $1', [email]);
-    const contributor = contributorResult.rows[0];
+    const contributor = await getRow('SELECT * FROM contributors WHERE email = ?', [email]);
     if (contributor) {
-      const activitiesResult = await pool.query(`
+      const activities = await allRows(`
         SELECT * FROM contributor_activities
-        WHERE contributor_id = $1
+        WHERE contributor_id = ?
         ORDER BY created_at DESC
       `, [contributor.id]);
-      return { ...contributor, contributions: activitiesResult.rows };
+      return { ...contributor, contributions: activities };
     }
     return null;
   },
 
   findById: async (id) => {
-    const contributorResult = await pool.query('SELECT * FROM contributors WHERE id = $1', [id]);
-    const contributor = contributorResult.rows[0];
+    const contributor = await getRow('SELECT * FROM contributors WHERE id = ?', [id]);
     if (contributor) {
-      const activitiesResult = await pool.query(`
+      const activities = await allRows(`
         SELECT * FROM contributor_activities
-        WHERE contributor_id = $1
+        WHERE contributor_id = ?
         ORDER BY created_at DESC
       `, [contributor.id]);
-      return { ...contributor, contributions: activitiesResult.rows };
+      return { ...contributor, contributions: activities };
     }
     return null;
   },
@@ -346,55 +325,59 @@ export const ContributorModel = {
     const existing = await ContributorModel.findByEmail(email);
     if (existing) return existing;
 
-    const result = await pool.query(`
+    await runQuery(`
       INSERT INTO contributors (email, name)
-      VALUES ($1, $2)
-      RETURNING *
+      VALUES (?, ?)
     `, [email, name]);
 
-    return result.rows[0];
+    // Get the last inserted row
+    const result = await getRow('SELECT * FROM contributors ORDER BY id DESC LIMIT 1');
+    return result;
   },
 
   addActivity: async (contributorId, activityData) => {
     const { activityType, activityId, storyId, storyTitle, status = 'pending' } = activityData;
-    const result = await pool.query(`
+    await runQuery(`
       INSERT INTO contributor_activities (contributor_id, activity_type, activity_id, story_id, story_title, status)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
+      VALUES (?, ?, ?, ?, ?, ?)
     `, [contributorId, activityType, activityId, storyId || null, storyTitle || null, status]);
-    return result.rows[0];
+
+    // Get the last inserted row
+    const result = await getRow('SELECT * FROM contributor_activities ORDER BY id DESC LIMIT 1');
+    return result;
   },
 
   updateActivityStatus: async (contributorId, activityId, activityType, status, newStoryId, newStoryTitle) => {
-    const result = await pool.query(`
+    await runQuery(`
       UPDATE contributor_activities
-      SET status = $1, story_id = $2, story_title = $3
-      WHERE contributor_id = $4 AND activity_id = $5 AND activity_type = $6
-      RETURNING *
+      SET status = ?, story_id = ?, story_title = ?
+      WHERE contributor_id = ? AND activity_id = ? AND activity_type = ?
     `, [status, newStoryId || null, newStoryTitle || null, contributorId, activityId, activityType]);
-    return result.rows[0];
+
+    return await getRow('SELECT * FROM contributor_activities WHERE contributor_id = ? AND activity_id = ? AND activity_type = ?', 
+      [contributorId, activityId, activityType]);
   },
 };
 
 // User model (for authentication)
 export const UserModel = {
   findByEmail: async (email) => {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    return result.rows[0] || null;
+    return await getRow('SELECT * FROM users WHERE email = ?', [email]);
   },
 
   create: async (email, passwordHash, name, role = 'user') => {
-    const result = await pool.query(`
+    await runQuery(`
       INSERT INTO users (email, password_hash, name, role)
-      VALUES ($1, $2, $3, $4)
-      RETURNING *
+      VALUES (?, ?, ?, ?)
     `, [email, passwordHash, name, role]);
-    return result.rows[0];
+
+    // Get the last inserted row
+    const result = await getRow('SELECT * FROM users ORDER BY id DESC LIMIT 1');
+    return result;
   },
 
   findById: async (id) => {
-    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-    const user = result.rows[0];
+    const user = await getRow('SELECT * FROM users WHERE id = ?', [id]);
     if (user) {
       const { password_hash, ...userWithoutPassword } = user;
       return userWithoutPassword;
@@ -406,16 +389,16 @@ export const UserModel = {
 // Stats model
 export const StatsModel = {
   getAdminStats: async () => {
-    const totalStoriesResult = await pool.query("SELECT COUNT(*) as count FROM stories WHERE status = 'approved'");
-    const pendingSubmissionsResult = await pool.query("SELECT COUNT(*) as count FROM submissions WHERE status = 'pending'");
-    const pendingContributionsResult = await pool.query("SELECT COUNT(*) as count FROM contributions WHERE status = 'pending'");
-    const totalContributorsResult = await pool.query('SELECT COUNT(*) as count FROM contributors');
+    const totalStoriesResult = await getRow("SELECT COUNT(*) as count FROM stories WHERE status = 'approved'");
+    const pendingSubmissionsResult = await getRow("SELECT COUNT(*) as count FROM submissions WHERE status = 'pending'");
+    const pendingContributionsResult = await getRow("SELECT COUNT(*) as count FROM contributions WHERE status = 'pending'");
+    const totalContributorsResult = await getRow('SELECT COUNT(*) as count FROM contributors');
 
     return {
-      totalStories: parseInt(totalStoriesResult.rows[0].count),
-      pendingSubmissions: parseInt(pendingSubmissionsResult.rows[0].count),
-      pendingContributions: parseInt(pendingContributionsResult.rows[0].count),
-      totalContributors: parseInt(totalContributorsResult.rows[0].count),
+      totalStories: parseInt(totalStoriesResult.count),
+      pendingSubmissions: parseInt(pendingSubmissionsResult.count),
+      pendingContributions: parseInt(pendingContributionsResult.count),
+      totalContributors: parseInt(totalContributorsResult.count),
     };
   },
 };

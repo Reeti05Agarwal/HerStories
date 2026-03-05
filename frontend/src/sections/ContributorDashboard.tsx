@@ -21,10 +21,6 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
   const [contributor, setContributor] = useState<Contributor | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    loadContributor();
-  }, [email, user]);
-
   const loadContributor = async () => {
     if (!email && !user) {
       setContributor(null);
@@ -42,6 +38,11 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
     }
   };
 
+  useEffect(() => {
+    loadContributor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, user]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail.trim()) return;
@@ -54,8 +55,9 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
       } else {
         await onLogin(loginEmail.trim());
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Login failed';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
