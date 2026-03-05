@@ -5,14 +5,14 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 const router = express.Router();
 
 // Get all stories (public - only approved)
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category, era, region, featured, search } = req.query;
-    
+
     let stories;
-    
+
     if (search) {
-      stories = StoryModel.search(search);
+      stories = await StoryModel.search(search);
     } else {
       const filters = {
         status: 'approved',
@@ -20,12 +20,12 @@ router.get('/', (req, res) => {
         era: era || undefined,
         region: region || undefined,
       };
-      
+
       if (featured !== undefined) {
         filters.featured = featured === 'true';
       }
-      
-      stories = StoryModel.findAll(filters);
+
+      stories = await StoryModel.findAll(filters);
     }
 
     // Get contributions for each story

@@ -3,10 +3,10 @@ import { UserModel } from '../models/index.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'herstories-secret-key-change-in-production';
 
-export const authMiddleware = (req, res, next) => {
+export const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ error: 'No token provided' });
     }
@@ -14,7 +14,7 @@ export const authMiddleware = (req, res, next) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET);
 
-    const user = UserModel.findById(decoded.userId);
+    const user = await UserModel.findById(decoded.userId);
     if (!user) {
       return res.status(401).json({ error: 'Invalid token' });
     }
