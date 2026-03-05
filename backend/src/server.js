@@ -29,9 +29,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Initialize database
-initializeDatabase();
-
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/stories', storiesRoutes);
@@ -48,10 +45,10 @@ app.get('/api/health', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err);
-  res.status(500).json({ 
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : err.message 
+  res.status(500).json({
+    error: process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : err.message
   });
 });
 
@@ -60,7 +57,15 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`API available at http://localhost:${PORT}/api`);
-});
+// Initialize database and start server
+initializeDatabase()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`API available at http://localhost:${PORT}/api`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to initialize database:', err);
+    process.exit(1);
+  });
