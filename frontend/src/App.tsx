@@ -66,7 +66,7 @@ function App() {
 
   const checkAuth = async () => {
     if (!isAuthenticated()) return;
-    
+
     try {
       const data = await authApi.me();
       if (data.user) {
@@ -74,11 +74,18 @@ function App() {
         setContributorEmail(data.user.email);
         if (data.user.role === 'admin') {
           setIsAdmin(true);
+          setCurrentView('admin');
+        } else {
+          setCurrentView('dashboard');
         }
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      removeToken();
+      // Don't remove token on 404 - might be CORS or network issue
+      const err = error as Error;
+      if (err.message !== 'Not found') {
+        removeToken();
+      }
     }
   };
 

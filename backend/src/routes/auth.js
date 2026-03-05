@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { UserModel } from '../models/index.js';
-import { generateToken } from '../middleware/auth.js';
+import { generateToken, authMiddleware } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -42,7 +42,7 @@ router.post('/login', async (req, res) => {
 });
 
 // Get current user
-router.get('/me', (req, res) => {
+router.get('/me', authMiddleware, (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
