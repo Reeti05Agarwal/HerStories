@@ -1,154 +1,154 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pkg from 'pg';
+const { Pool } = pkg;
+import dotenv from 'dotenv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+dotenv.config();
 
-// Use absolute path for production (Render), relative for development
-const dbPath = process.env.NODE_ENV === 'production'
-  ? process.env.DATABASE_PATH || '/opt/render/project/src/db/herstories.db'
-  : path.join(__dirname, '../../db/herstories.db');
-
-const db = new Database(dbPath);
-
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+// Create connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false
+  } : false
+});
 
 // Initialize database schema
 const initializeDatabase = async () => {
   console.log('Initializing database...');
+  
+  try {
+    // Users table (for admin authentication)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        name TEXT NOT NULL,
+        role TEXT DEFAULT 'user',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Users table (for admin authentication)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password_hash TEXT NOT NULL,
-      name TEXT NOT NULL,
-      role TEXT DEFAULT 'user',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    // Stories table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS stories (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT NOT NULL,
+        era TEXT NOT NULL,
+        region TEXT NOT NULL,
+        image_url TEXT,
+        submitted_by TEXT NOT NULL,
+        submitter_email TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        featured BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Stories table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS stories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      content TEXT NOT NULL,
-      category TEXT NOT NULL,
-      era TEXT NOT NULL,
-      region TEXT NOT NULL,
-      image_url TEXT,
-      submitted_by TEXT NOT NULL,
-      submitter_email TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      featured INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    // Submissions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS submissions (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        content TEXT NOT NULL,
+        category TEXT NOT NULL,
+        era TEXT NOT NULL,
+        region TEXT NOT NULL,
+        submitted_by TEXT NOT NULL,
+        submitter_email TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        admin_notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Submissions table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS submissions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      subject TEXT NOT NULL,
-      summary TEXT NOT NULL,
-      content TEXT NOT NULL,
-      category TEXT NOT NULL,
-      era TEXT NOT NULL,
-      region TEXT NOT NULL,
-      submitted_by TEXT NOT NULL,
-      submitter_email TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      admin_notes TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    // Contributions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contributions (
+        id SERIAL PRIMARY KEY,
+        story_id INTEGER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        contribution_type TEXT NOT NULL,
+        submitted_by TEXT NOT NULL,
+        submitter_email TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Contributions table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS contributions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      story_id INTEGER NOT NULL,
-      content TEXT NOT NULL,
-      contribution_type TEXT NOT NULL,
-      submitted_by TEXT NOT NULL,
-      submitter_email TEXT NOT NULL,
-      status TEXT DEFAULT 'pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
-    )
-  `);
+    // Contributors table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contributors (
+        id SERIAL PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Contributors table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS contributors (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+    // Contributor activities
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS contributor_activities (
+        id SERIAL PRIMARY KEY,
+        contributor_id INTEGER NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
+        activity_type TEXT NOT NULL,
+        activity_id INTEGER NOT NULL,
+        story_id INTEGER,
+        story_title TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-  // Contributor activities (tracks all contributions by a user)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS contributor_activities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      contributor_id INTEGER NOT NULL,
-      activity_type TEXT NOT NULL,
-      activity_id INTEGER NOT NULL,
-      story_id INTEGER,
-      story_title TEXT,
-      status TEXT DEFAULT 'pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (contributor_id) REFERENCES contributors(id) ON DELETE CASCADE
-    )
-  `);
+    // Create indexes
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
+      CREATE INDEX IF NOT EXISTS idx_stories_category ON stories(category);
+      CREATE INDEX IF NOT EXISTS idx_stories_featured ON stories(featured);
+      CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
+      CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status);
+      CREATE INDEX IF NOT EXISTS idx_contributions_story_id ON contributions(story_id);
+      CREATE INDEX IF NOT EXISTS idx_contributor_activities_contributor_id ON contributor_activities(contributor_id);
+    `);
 
-  // Create indexes for better performance
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_stories_status ON stories(status);
-    CREATE INDEX IF NOT EXISTS idx_stories_category ON stories(category);
-    CREATE INDEX IF NOT EXISTS idx_stories_featured ON stories(featured);
-    CREATE INDEX IF NOT EXISTS idx_submissions_status ON submissions(status);
-    CREATE INDEX IF NOT EXISTS idx_contributions_status ON contributions(status);
-    CREATE INDEX IF NOT EXISTS idx_contributions_story_id ON contributions(story_id);
-    CREATE INDEX IF NOT EXISTS idx_contributor_activities_contributor_id ON contributor_activities(contributor_id);
-  `);
+    // Insert default admin user if not exists
+    const adminEmail = 'admin@herstories.org';
+    const existingAdmin = await pool.query('SELECT * FROM users WHERE email = $1', [adminEmail]);
 
-  // Insert default admin user if not exists
-  const bcrypt = await import('bcryptjs');
-  const adminEmail = 'admin@herstories.org';
-  const existingAdmin = db.prepare('SELECT * FROM users WHERE email = ?').get(adminEmail);
+    if (existingAdmin.rows.length === 0) {
+      const bcrypt = await import('bcryptjs');
+      const passwordHash = bcrypt.default.hashSync('admin123', 10);
+      await pool.query(
+        'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4)',
+        [adminEmail, passwordHash, 'Admin User', 'admin']
+      );
+      console.log('Default admin user created: admin@herstories.org (password: admin123)');
+    }
 
-  if (!existingAdmin) {
-    const passwordHash = bcrypt.default.hashSync('admin123', 10);
-    db.prepare(`
-      INSERT INTO users (email, password_hash, name, role)
-      VALUES (?, ?, ?, ?)
-    `).run(adminEmail, passwordHash, 'Admin User', 'admin');
-    console.log('Default admin user created: admin@herstories.org (password: admin123)');
+    // Insert sample stories if empty
+    const storyCount = await pool.query('SELECT COUNT(*) FROM stories');
+    if (parseInt(storyCount.rows[0].count) === 0) {
+      await insertSampleStories();
+    }
+
+    console.log('Database initialized successfully!');
+  } catch (error) {
+    console.error('Database initialization error:', error);
+    throw error;
   }
-
-  // Insert sample stories if stories table is empty
-  const storyCount = db.prepare('SELECT COUNT(*) as count FROM stories').get().count;
-  if (storyCount === 0) {
-    insertSampleStories();
-  }
-
-  console.log('Database initialized successfully!');
 };
 
-const insertSampleStories = () => {
+const insertSampleStories = async () => {
   const sampleStories = [
     {
       title: 'The Woman Who Mapped the Stars',
@@ -236,13 +236,11 @@ const insertSampleStories = () => {
     },
   ];
 
-  const insertStmt = db.prepare(`
-    INSERT INTO stories (title, subject, summary, content, category, era, region, image_url, submitted_by, submitter_email, status, featured)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-
   for (const story of sampleStories) {
-    insertStmt.run(
+    await pool.query(`
+      INSERT INTO stories (title, subject, summary, content, category, era, region, image_url, submitted_by, submitter_email, status, featured)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `, [
       story.title,
       story.subject,
       story.summary,
@@ -254,11 +252,11 @@ const insertSampleStories = () => {
       story.submittedBy,
       story.submitterEmail,
       story.status,
-      story.featured ? 1 : 0
-    );
+      story.featured,
+    ]);
   }
 
   console.log('Sample stories inserted!');
 };
 
-export { db, initializeDatabase };
+export { pool, initializeDatabase };

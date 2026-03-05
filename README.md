@@ -18,7 +18,7 @@ A full-stack web application for sharing and preserving untold stories of remark
 ### Backend
 - **Runtime:** Node.js
 - **Framework:** Express.js
-- **Database:** SQLite (better-sqlite3)
+- **Database:** PostgreSQL (pg)
 - **Authentication:** JWT (jsonwebtoken)
 - **Password Hashing:** bcryptjs
 - **Validation:** Zod
@@ -44,7 +44,6 @@ feminism/
 │   │   ├── routes/     # API routes
 │   │   ├── middleware/ # Auth middleware
 │   │   └── server.js
-│   ├── db/             # SQLite database
 │   ├── .env
 │   └── package.json
 └── README.md
@@ -81,7 +80,7 @@ feminism/
    NODE_ENV=development
    FRONTEND_URL=http://localhost:5173
    JWT_SECRET=herstories-dev-secret-key-2024
-   DATABASE_PATH=./db/herstories.db
+   DATABASE_URL=postgresql://localhost:5432/herstories
    ```
 
    **Frontend** (`frontend/.env`):
@@ -89,7 +88,17 @@ feminism/
    VITE_API_URL=http://localhost:3001/api
    ```
 
-5. **Initialize the database:**
+5. **Set up PostgreSQL:**
+
+   Create a PostgreSQL database and update `DATABASE_URL` in `backend/.env`.
+   
+   For local development with a local PostgreSQL instance:
+   ```bash
+   # Create database (example using psql)
+   createdb herstories
+   ```
+
+6. **Initialize the database:**
    ```bash
    cd backend
    npm run init-db
@@ -227,7 +236,7 @@ npm run lint
 
 ## Database Schema
 
-The application uses SQLite with the following tables:
+The application uses PostgreSQL with the following tables:
 
 - `users` - Admin users for authentication
 - `stories` - Published stories
