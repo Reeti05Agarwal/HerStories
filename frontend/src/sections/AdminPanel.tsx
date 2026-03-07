@@ -56,7 +56,8 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
   const [adminNotes, setAdminNotes] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  
+  const [activeTab, setActiveTab] = useState('pending-stories');
+
   // Story form state
   const [showStoryForm, setShowStoryForm] = useState(false);
   const [editingStory, setEditingStory] = useState<Story | null>(null);
@@ -166,6 +167,7 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
       featured: false,
     });
     setShowStoryForm(true);
+    setActiveTab('manage-stories');
   };
 
   const handleOpenEditStory = (story: Story) => {
@@ -329,7 +331,7 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="pending-stories" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5">
             <TabsTrigger value="pending-stories">
               Pending Stories
@@ -547,36 +549,51 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
           {/* All Stories */}
           <TabsContent value="all-stories">
             <div className="space-y-4">
-              {allSubmissions.length > 0 ? (
-                allSubmissions.map((submission) => (
+              {stories.length > 0 ? (
+                stories.map((story) => (
                   <div
-                    key={submission.id}
+                    key={story.id}
                     className="p-4 bg-card rounded-xl border border-border"
                   >
                     <div className="flex items-start justify-between">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-serif text-lg font-semibold">{submission.title}</h3>
-                          <Badge
-                            variant={submission.status === 'approved' ? 'default' :
-                                    submission.status === 'rejected' ? 'destructive' : 'secondary'}
-                            className="text-xs"
-                          >
-                            {submission.status}
+                          <h3 className="font-serif text-lg font-semibold">{story.title}</h3>
+                          <Badge variant="default" className="text-xs">
+                            {story.status}
                           </Badge>
+                          {story.featured && (
+                            <Badge variant="secondary" className="text-xs">Featured</Badge>
+                          )}
                         </div>
-                        <p className="text-muted-foreground">{submission.subject}</p>
+                        <p className="text-muted-foreground">{story.subject}</p>
                         <div className="flex items-center gap-2 mt-2">
                           <Badge variant="secondary" className="text-xs">
-                            {CATEGORY_LABELS[submission.category]}
+                            {CATEGORY_LABELS[story.category]}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            by {submission.submittedBy}
+                            by {story.submittedBy}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            • {new Date(submission.createdAt).toLocaleDateString()}
+                            • {new Date(story.createdAt).toLocaleDateString()}
                           </span>
                         </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenEditStory(story)}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteStory(story.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   </div>
@@ -584,7 +601,7 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No submissions found</p>
+                  <p>No stories found</p>
                 </div>
               )}
             </div>
