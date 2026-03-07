@@ -33,7 +33,13 @@ export function Navigation({
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // Register form state
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
 
   const handleLogin = async () => {
     if (!loginEmail.trim()) {
@@ -47,29 +53,69 @@ export function Navigation({
       if (loginPassword.trim()) {
         const data = await authApi.login(loginEmail, loginPassword);
         setToken(data.token);
-        
+
         // Dispatch custom event for App to handle
-        const event = new CustomEvent('herstories-login-success', { 
-          detail: { 
+        const event = new CustomEvent('herstories-login-success', {
+          detail: {
             email: data.user.email,
             user: data.user,
             isAdmin: data.user.role === 'admin'
-          } 
+          }
         });
         window.dispatchEvent(event);
       } else {
         // For non-admin users, just set the email
-        const event = new CustomEvent('herstories-login-success', { 
-          detail: { email: loginEmail, user: null, isAdmin: false } 
+        const event = new CustomEvent('herstories-login-success', {
+          detail: { email: loginEmail, user: null, isAdmin: false }
         });
         window.dispatchEvent(event);
       }
-      
+
       setLoginDialogOpen(false);
       setLoginEmail('');
       setLoginPassword('');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Login failed';
+      toast.error(message);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!registerName.trim() || !registerEmail.trim() || !registerPassword.trim()) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (registerPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const data = await authApi.register(registerName, registerEmail, registerPassword);
+      setToken(data.token);
+
+      // Dispatch custom event for App to handle
+      const event = new CustomEvent('herstories-login-success', {
+        detail: {
+          email: data.user.email,
+          user: data.user,
+          isAdmin: data.user.role === 'admin'
+        }
+      });
+      window.dispatchEvent(event);
+
+      setLoginDialogOpen(false);
+      setRegisterName('');
+      setRegisterEmail('');
+      setRegisterPassword('');
+      setIsRegistering(false);
+      toast.success('Account created successfully!');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Registration failed';
       toast.error(message);
     } finally {
       setIsLoggingIn(false);
@@ -157,21 +203,37 @@ export function Navigation({
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle className="font-serif text-2xl">Welcome Back</DialogTitle>
+                    <DialogTitle className="font-serif text-2xl">
+                      {isRegistering ? 'Create Account' : 'Welcome Back'}
+                    </DialogTitle>
                     <DialogDescription>
-                      Enter your email to access your contributions or the admin panel.
+                      {isRegistering
+                        ? 'Sign up to start contributing stories to HerStories.'
+                        : 'Enter your email to access your contributions or the admin panel.'}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 pt-4">
+                    {isRegistering && (
+                      <div className="space-y-2">
+                        <Label htmlFor="register-name">Full Name</Label>
+                        <Input
+                          id="register-name"
+                          type="text"
+                          placeholder="Jane Doe"
+                          value={registerName}
+                          onChange={(e) => setRegisterName(e.target.value)}
+                        />
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         placeholder="you@example.com"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        value={isRegistering ? registerEmail : loginEmail}
+                        onChange={(e) => isRegistering ? setRegisterEmail(e.target.value) : setLoginEmail(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (isRegistering ? handleRegister() : handleLogin())}
                       />
                     </div>
                     <div className="space-y-2">
@@ -180,14 +242,39 @@ export function Navigation({
                         id="password"
                         type="password"
                         placeholder="••••••••"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+                        value={isRegistering ? registerPassword : loginPassword}
+                        onChange={(e) => isRegistering ? setRegisterPassword(e.target.value) : setLoginPassword(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && (isRegistering ? handleRegister() : handleLogin())}
                       />
                     </div>
-                    <Button onClick={handleLogin} className="w-full" disabled={isLoggingIn}>
-                      {isLoggingIn ? 'Logging in...' : 'Continue'}
+                    <Button onClick={isRegistering ? handleRegister : handleLogin} className="w-full" disabled={isLoggingIn}>
+                      {isLoggingIn
+                        ? (isRegistering ? 'Creating account...' : 'Logging in...')
+                        : (isRegistering ? 'Create Account' : 'Continue')}
                     </Button>
+                    <div className="text-center text-sm">
+                      {isRegistering ? (
+                        <p className="text-muted-foreground">
+                          Already have an account?{' '}
+                          <button
+                            onClick={() => setIsRegistering(false)}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Sign In
+                          </button>
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          Don't have an account?{' '}
+                          <button
+                            onClick={() => setIsRegistering(true)}
+                            className="text-primary hover:underline font-medium"
+                          >
+                            Sign Up
+                          </button>
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>

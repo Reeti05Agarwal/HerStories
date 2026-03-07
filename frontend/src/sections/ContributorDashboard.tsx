@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import type { Contributor } from '@/types';
-import { contributorsApi, isAuthenticated } from '@/services/api';
+import { contributorsApi, isAuthenticated, authApi, setToken } from '@/services/api';
 
 interface ContributorDashboardProps {
   email: string;
@@ -20,6 +20,12 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
   const [loginPassword, setLoginPassword] = useState('');
   const [contributor, setContributor] = useState<Contributor | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  
+  // Register form state
+  const [registerName, setRegisterName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
 
   const loadContributor = async () => {
     if (!email && !user) {
@@ -63,6 +69,46 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
     }
   };
 
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!registerName.trim() || !registerEmail.trim() || !registerPassword.trim()) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (registerPassword.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await authApi.register(registerName, registerEmail, registerPassword);
+      setToken(data.token);
+      
+      // Dispatch custom event for App to handle
+      const event = new CustomEvent('herstories-login-success', {
+        detail: {
+          email: data.user.email,
+          user: data.user,
+          isAdmin: data.user.role === 'admin'
+        }
+      });
+      window.dispatchEvent(event);
+      
+      toast.success('Account created successfully!');
+      setRegisterName('');
+      setRegisterEmail('');
+      setRegisterPassword('');
+      setIsRegistering(false);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Registration failed';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!email) {
     return (
       <section className="py-20 px-4 sm:px-6 lg:px-8 min-h-screen">
@@ -79,36 +125,79 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
+            {isRegistering && (
+              <div className="space-y-2">
+                <Label htmlFor="register-name">Full Name</Label>
+                <Input
+                  id="register-name"
+                  type="text"
+                  placeholder="Jane Doe"
+                  value={registerName}
+                  onChange={(e) => setRegisterName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
+                value={isRegistering ? registerEmail : loginEmail}
+                onChange={(e) => isRegistering ? setRegisterEmail(e.target.value) : setLoginEmail(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password (optional for contributors)</Label>
+              <Label htmlFor="password">Password {isRegistering ? '' : '(optional for contributors)'}</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
+                value={isRegistering ? registerPassword : loginPassword}
+                onChange={(e) => isRegistering ? setRegisterPassword(e.target.value) : setLoginPassword(e.target.value)}
+                required={isRegistering}
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Loading...' : (
-                <>
-                  View My Contributions
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              )}
+              {isLoading
+                ? (isRegistering ? 'Creating account...' : 'Loading...')
+                : (isRegistering
+                  ? 'Create Account'
+                  : (
+                    <>
+                      View My Contributions
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  ))}
             </Button>
+            <div className="text-center text-sm">
+              {isRegistering ? (
+                <p className="text-muted-foreground">
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsRegistering(false)}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Sign In
+                  </button>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  Don't have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => setIsRegistering(true)}
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Sign Up
+                  </button>
+                </p>
+              )}
+            </div>
           </form>
         </div>
       </section>
