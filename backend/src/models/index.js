@@ -139,13 +139,19 @@ export const StoryModel = {
 // Submission models
 export const SubmissionModel = {
   findAll: async (status) => {
-    let result;
-    if (status) {
-      result = await pool.query('SELECT * FROM submissions WHERE status = $1 ORDER BY created_at DESC', [status]);
-    } else {
-      result = await pool.query('SELECT * FROM submissions ORDER BY created_at DESC');
+    try {
+      let result;
+      // Only filter by status if it's a non-empty string
+      if (status && typeof status === 'string' && status.trim() !== '') {
+        result = await pool.query('SELECT * FROM submissions WHERE status = $1 ORDER BY created_at DESC', [status.trim()]);
+      } else {
+        result = await pool.query('SELECT * FROM submissions ORDER BY created_at DESC');
+      }
+      return result.rows || [];
+    } catch (error) {
+      console.error('SubmissionModel.findAll error:', error);
+      throw error;
     }
-    return result.rows;
   },
 
   findById: async (id) => {
@@ -220,26 +226,32 @@ export const SubmissionModel = {
 // Contribution models
 export const ContributionModel = {
   findAll: async (filters = {}) => {
-    let query = 'SELECT * FROM contributions WHERE 1=1';
-    const params = [];
-    let paramIndex = 1;
+    try {
+      let query = 'SELECT * FROM contributions WHERE 1=1';
+      const params = [];
+      let paramIndex = 1;
 
-    if (filters.status) {
-      query += ` AND status = $${paramIndex}`;
-      params.push(filters.status);
-      paramIndex++;
+      // Only add status filter if it's a non-empty string
+      if (filters.status && typeof filters.status === 'string' && filters.status.trim() !== '') {
+        query += ` AND status = $${paramIndex}`;
+        params.push(filters.status.trim());
+        paramIndex++;
+      }
+
+      if (filters.storyId) {
+        query += ` AND story_id = $${paramIndex}`;
+        params.push(filters.storyId);
+        paramIndex++;
+      }
+
+      query += ' ORDER BY created_at DESC';
+
+      const result = await pool.query(query, params);
+      return result.rows || [];
+    } catch (error) {
+      console.error('ContributionModel.findAll error:', error);
+      throw error;
     }
-
-    if (filters.storyId) {
-      query += ` AND story_id = $${paramIndex}`;
-      params.push(filters.storyId);
-      paramIndex++;
-    }
-
-    query += ' ORDER BY created_at DESC';
-
-    const result = await pool.query(query, params);
-    return result.rows;
   },
 
   findById: async (id) => {

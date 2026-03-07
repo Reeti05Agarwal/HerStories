@@ -5,10 +5,15 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 const router = express.Router();
 
 // Get all contributions (admin only)
-router.get('/', authMiddleware, adminMiddleware, (req, res) => {
+router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { status, storyId } = req.query;
-    const contributions = ContributionModel.findAll({ status, storyId });
+    const contributions = await ContributionModel.findAll({ status, storyId });
+
+    if (!Array.isArray(contributions)) {
+      console.error('Contributions is not an array:', contributions);
+      return res.status(500).json({ error: 'Database error' });
+    }
 
     const formattedContributions = contributions.map(c => ({
       ...c,
@@ -28,10 +33,10 @@ router.get('/', authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // Get contribution by ID (admin only)
-router.get('/:id', authMiddleware, adminMiddleware, (req, res) => {
+router.get('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const contribution = ContributionModel.findById(req.params.id);
-    
+    const contribution = await ContributionModel.findById(req.params.id);
+
     if (!contribution) {
       return res.status(404).json({ error: 'Contribution not found' });
     }

@@ -5,10 +5,15 @@ import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 const router = express.Router();
 
 // Get all submissions (admin only)
-router.get('/', authMiddleware, adminMiddleware, (req, res) => {
+router.get('/', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { status } = req.query;
-    const submissions = SubmissionModel.findAll(status);
+    const submissions = await SubmissionModel.findAll(status);
+
+    if (!Array.isArray(submissions)) {
+      console.error('Submissions is not an array:', submissions);
+      return res.status(500).json({ error: 'Database error' });
+    }
 
     const formattedSubmissions = submissions.map(sub => ({
       ...sub,
@@ -27,10 +32,10 @@ router.get('/', authMiddleware, adminMiddleware, (req, res) => {
 });
 
 // Get submission by ID (admin only)
-router.get('/:id', authMiddleware, adminMiddleware, (req, res) => {
+router.get('/:id', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const submission = SubmissionModel.findById(req.params.id);
-    
+    const submission = await SubmissionModel.findById(req.params.id);
+
     if (!submission) {
       return res.status(404).json({ error: 'Submission not found' });
     }
