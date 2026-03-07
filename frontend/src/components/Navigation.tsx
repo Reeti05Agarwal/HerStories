@@ -188,9 +188,6 @@ export function Navigation({
                     <Button onClick={handleLogin} className="w-full" disabled={isLoggingIn}>
                       {isLoggingIn ? 'Logging in...' : 'Continue'}
                     </Button>
-                    <p className="text-xs text-muted-foreground text-center">
-                      Use &quot;admin@herstories.org&quot; with password &quot;admin123&quot; for admin access
-                    </p>
                   </div>
                 </DialogContent>
               </Dialog>

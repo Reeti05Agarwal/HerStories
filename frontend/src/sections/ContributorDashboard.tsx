@@ -109,9 +109,6 @@ export function ContributorDashboard({ email, onLogin, user }: ContributorDashbo
                 </>
               )}
             </Button>
-            <p className="text-xs text-muted-foreground text-center">
-              Use &quot;admin@herstories.org&quot; with password &quot;admin123&quot; for admin access.
-            </p>
           </form>
         </div>
       </section>
