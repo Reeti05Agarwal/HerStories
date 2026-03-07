@@ -239,7 +239,6 @@ export function AdminPanel({ onLogout, onStoryApproved, onStoryRejected }: Admin
 
   const pendingSubmissions = filteredSubmissions.filter(s => s.status === 'pending');
   const pendingContributions = filteredContributions.filter(c => c.status === 'pending');
-  const allSubmissions = filteredSubmissions;
   const allContributions = filteredContributions;
 
   if (isLoading) {
